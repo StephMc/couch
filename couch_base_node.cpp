@@ -6,7 +6,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <cstring>
-#include <unistd.h>
 #include <termios.h>
 #include <fcntl.h>
 
@@ -86,11 +85,20 @@ int cap(int a) {
     return a;
 } 
 
+double magic (double a,double b){
+    return abs(a) < abs(b) ? a:b;
+}
+
 void move_motors(struct joy_status *js)
 {
-    double x = (double)js->axis[1] / SHRT_MAX;
-    double y = (double)js->axis[0] / SHRT_MAX;
+    double x = (double)js->axis[0] / SHRT_MAX;
+    double y = -(double)js->axis[1] / SHRT_MAX;
     double rot = (double)js->axis[3] / SHRT_MAX;
+
+    static double lfs = 0;
+    static double rfs = 0;
+    static double lbs = 0;
+    static double rbs = 0;
 
     cout << x << " " << y << " " << rot << endl;
 
@@ -101,13 +109,22 @@ void move_motors(struct joy_status *js)
     double zDir = rot > 0 ? 1 : rot < 0 ? -1 : 0;
     double rot1 = (pow(rot, 2) * (1.0 - minSpeed) * zDir) * srot + minSpeed * zDir;
 
-    int lf = cap(x1 + y1 + rot1);
-    int rf = cap(x1 - y1 + rot1);
-    int lb = cap(x1 - y1 - rot1);
-    int rb = cap(x1 + y1 - rot1);
+    double scl = 0.99;
+
+    lfs = magic(lfs*scl + (1-scl)*cap(x1 + y1 + rot1),(double)cap(x1 + y1 + rot1));
+    rfs = magic(rfs*scl + (1-scl)*cap(x1 - y1 + rot1),(double)cap(x1 - y1 + rot1));
+    lbs = magic(lbs*scl + (1-scl)*cap(x1 - y1 - rot1),(double)cap(x1 - y1 - rot1));
+    rbs = magic(rbs*scl + (1-scl)*cap(x1 + y1 - rot1),(double)cap(x1 + y1 - rot1));
+
+
+    int lf = (int)lfs;
+    int rf = (int)rfs;
+    int lb = (int)lbs;
+    int rb = (int)rbs;
+
     cout << "Setting couch motors to: " << lf << " " << rf << " " << lb << 
         " " << rb << endl;
-    //steve->setMotors(lf, rf, lb, rb);
+    steve->setMotors(lf, rf, lb, rb);
 }
 
 #define COUCH_PORT 1
@@ -115,14 +132,14 @@ void move_motors(struct joy_status *js)
 
 int main(int argc, char **argv)
 {
-    //steve = new Couch(argv[COUCH_PORT]);
+    steve = new Couch(argv[COUCH_PORT]);
     cout << "Opening joystick " << argv[JOY_PORT] << endl;
     int joystick_fd = open(argv[JOY_PORT], O_RDONLY | O_NONBLOCK);
     if (joystick_fd < 0) return -1;
 
-    sx = 5000.0;
-    sy = 5000.0;
-    srot = 2500.0;
+    sx = 20000.0;
+    sy = 20000.0;
+    srot = 10000.0;
     minSpeed = 0.1;
 
     struct joy_status jss;
@@ -146,6 +163,7 @@ int main(int argc, char **argv)
 
         // Send commands to the couch
         move_motors(&jss); 
+	usleep(10000);
     }
 
     close(joystick_fd);
