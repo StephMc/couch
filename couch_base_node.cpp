@@ -160,7 +160,10 @@ int main(int argc, char **argv)
             cout << "Error reading joystick" << endl;
             continue;
         }
-
+	if (jss.button[0]) {
+	    cout << "Resetting error state" << endl;
+	    steve->resetFault();
+	}	
         // Send commands to the couch
         move_motors(&jss); 
 	usleep(10000);
